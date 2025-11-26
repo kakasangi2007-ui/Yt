@@ -1,1 +1,28 @@
+name: Upload Shorts
 
+on:
+  push:
+    paths:
+      - "shorts/**"
+  schedule:
+    - cron: "*/20 * * * *"   # هر 20 دقیقه بررسی می‌کند
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: Run uploader
+        run: python uploader.py
