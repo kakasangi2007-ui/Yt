@@ -42,96 +42,169 @@ def save_last_messages(channels):
     except:
         pass
 
-def extract_message_id_and_configs(html_content):
+def extract_raw_messages(html_content):
+    """متن خام پیام‌ها را بدون دستکاری استخراج می‌کند"""
     messages_data = []
     
-    message_pattern = r'data-post="([^"]+)"[^>]*>(.*?)</div>\s*</div>\s*</div>'
+    # الگوی بهبود یافته برای گرفتن کل پیام
+    message_pattern = r'<div class="tgme_widget_message[^>]*data-post="([^"]+)"[^>]*>(.*?)<div class="tgme_widget_message_footer'
     messages = re.findall(message_pattern, html_content, re.DOTALL)
     
     for post_id, message_html in messages:
-        config_patterns = [
-            r'(vmess://[a-zA-Z0-9+/=%:.-]+)',
-            r'(vless://[a-zA-Z0-9+/=%:.-]+)',
-            r'(ss://[a-zA-Z0-9+/=%:.-]+)',
-            r'(trojan://[a-zA-Z0-9+/=%:.-]+)',
-            r'(hy2://[a-zA-Z0-9+/=%:.-]+)'
-        ]
+        # استخراج متن اصلی پیام
+        text_pattern = r'<div class="tgme_widget_message_text[^>]*>(.*?)</div>'
+        text_match = re.search(text_pattern, message_html, re.DOTALL)
         
-        configs_in_message = []
-        for pattern in config_patterns:
-            found = re.findall(pattern, message_html)
-            configs_in_message.extend(found)
-        
-        if configs_in_message:
+        if text_match:
+            raw_text = text_match.group(1)
+            
+            # **مهم: بدون هیچ پردازشی، متن را همانطور که هست برمی‌گردانیم**
+            # فقط تگ‌های HTML را حذف می‌کنیم
+            clean_text = re.sub(r'<[^>]+>', '', raw_text)
+            clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+            
             messages_data.append({
                 "post_id": post_id,
-                "configs": configs_in_message
+                "raw_text": raw_text,  # متن اصلی با HTML
+                "clean_text": clean_text  # متن بدون HTML
             })
     
     return messages_data
 
-def escape_html(text):
-    """کاراکترهای ویژه HTML را escape می‌کند"""
-    text = text.replace('&', '&amp;')
-    text = text.replace('<', '&lt;')
-    text = text.replace('>', '&gt;')
-    text = text.replace('"', '&quot;')
-    text = text.replace("'", '&#39;')
-    return text
+def find_all_configs_in_text(text):
+    """همه کانفیگ‌ها را در متن پیدا می‌کند (بدون تغییر)"""
+    configs = []
+    
+    # همه مواردی که با پروتکل شروع می‌شوند
+    lines = text.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        
+        # کانفیگ‌های معروف
+        if any(line.startswith(proto) for proto in [
+            'vmess://', 'vless://', 'ss://', 'trojan://', 'hy2://',
+            'VMESS://', 'VLESS://', 'SS://', 'TROJAN://', 'HY2://'
+        ]):
+            # کانفیگ کامل را بگیر (تا انتهای خط یا تا space)
+            config = line.split()[0] if ' ' in line else line
+            if len(config) > 10:  # حداقل طول
+                configs.append(config)
+        
+        # لینک‌های subscribe
+        elif 'http' in line.lower() and ('subscribe' in line.lower() or 'sub' in line.lower()):
+            configs.append(line.split()[0] if ' ' in line else line)
+    
+    return configs
 
-async def send_configs_from_new_messages(bot, messages_data):
+async def send_all_configs_together(bot, messages_data):
+    """همه کانفیگ‌های جدید را در یک پیام ارسال می‌کند"""
     if not messages_data:
         return 0
     
-    total_configs_sent = 0
+    all_configs = []
     
+    # جمع‌آوری همه کانفیگ‌ها از همه پیام‌های جدید
     for message in messages_data:
-        if not message["configs"]:
-            continue
+        configs = find_all_configs_in_text(message["clean_text"])
+        all_configs.extend(configs)
+    
+    if not all_configs:
+        print("  📭 هیچ کانفیگی در پیام‌ها یافت نشد")
+        return 0
+    
+    # حذف تکراری‌ها (اما حفظ ترتیب)
+    unique_configs = []
+    seen = set()
+    for config in all_configs:
+        if config not in seen:
+            seen.add(config)
+            unique_configs.append(config)
+    
+    print(f"  📦 {len(unique_configs)} کانفیگ منحصر به فرد یافت شد")
+    
+    # ساخت یک پیام بزرگ با همه کانفیگ‌ها
+    message_text = "<b>🌟 کانفیگ‌های جدید 🌟</b>\n\n"
+    message_text += "<b>🔗 تمام کانفیگ‌ها (کپی‌شدنی):</b>\n\n"
+    
+    for i, config in enumerate(unique_configs, 1):
+        message_text += f"<code>{config}</code>\n\n"
+    
+    message_text += "<b>🌐 وبسایت برای کانفیگ‌های بیشتر:</b>\n"
+    message_text += "https://configfree.github.io/Configfree/\n\n"
+    message_text += "<b>📌 کانال ما:</b> @configs_freeiran\n"
+    message_text += "============================"
+    
+    # اگر پیام خیلی بزرگ شد، تقسیم کن
+    if len(message_text) > 4000:
+        print(f"  ⚠️ پیام بزرگ است ({len(message_text)} کاراکتر)، تقسیم می‌شود...")
         
-        # ساخت پیام با فرمت HTML
-        message_text = "<b>🌟 کانفیگ جدید 🌟</b>\n\n"
-        message_text += "<b>🔗 کانفیگ (کپی‌شدنی):</b>\n\n"
+        # پیام اول: هدر + 15 کانفیگ اول
+        first_part = "<b>🌟 کانفیگ‌های جدید 🌟</b>\n\n"
+        first_part += "<b>🔗 کانفیگ‌ها (قسمت ۱):</b>\n\n"
         
-        for config in message["configs"]:
-            # Escape کاراکترهای HTML
-            safe_config = escape_html(config)
-            message_text += f"<code>{safe_config}</code>\n\n"
+        for config in unique_configs[:15]:
+            first_part += f"<code>{config}</code>\n\n"
         
-        message_text += "<b>🌐 وبسایت برای کانفیگ‌های بیشتر:</b>\n"
-        message_text += "https://configfree.github.io/Configfree/\n\n"
-        message_text += "<b>📌 کانال ما:</b> @configs_freeiran\n"
-        message_text += "============================"
+        first_part += "<b>ادامه در پیام بعدی...</b>\n"
+        first_part += "============================"
         
-        # ارسال با فرمت HTML
+        # پیام دوم: بقیه کانفیگ‌ها
+        second_part = "<b>🌟 کانفیگ‌های جدید 🌟</b>\n\n"
+        second_part += "<b>🔗 کانفیگ‌ها (قسمت ۲):</b>\n\n"
+        
+        for config in unique_configs[15:30]:
+            second_part += f"<code>{config}</code>\n\n"
+        
+        if len(unique_configs) > 30:
+            second_part += f"\nو {len(unique_configs) - 30} کانفیگ دیگر...\n"
+        
+        second_part += "<b>🌐 وبسایت برای کانفیگ‌های بیشتر:</b>\n"
+        second_part += "https://configfree.github.io/Configfree/\n\n"
+        second_part += "<b>📌 کانال ما:</b> @configs_freeiran\n"
+        second_part += "============================"
+        
+        try:
+            # ارسال قسمت اول
+            await bot.send_message(
+                chat_id=DESTINATION_CHANNEL,
+                text=first_part,
+                parse_mode='HTML',
+                disable_web_page_preview=True
+            )
+            await asyncio.sleep(1)
+            
+            # ارسال قسمت دوم
+            await bot.send_message(
+                chat_id=DESTINATION_CHANNEL,
+                text=second_part,
+                parse_mode='HTML',
+                disable_web_page_preview=True
+            )
+            
+            print(f"  ✅ کانفیگ‌ها در ۲ پیام ارسال شدند")
+            return len(unique_configs)
+            
+        except TelegramError as e:
+            print(f"  ❌ خطا در ارسال: {e}")
+            return 0
+    else:
+        # ارسال در یک پیام
         try:
             await bot.send_message(
                 chat_id=DESTINATION_CHANNEL,
                 text=message_text,
-                parse_mode='HTML',  # تغییر به HTML
+                parse_mode='HTML',
                 disable_web_page_preview=True
             )
-            total_configs_sent += len(message["configs"])
-            print(f"  ✅ {len(message['configs'])} کانفیگ ارسال شد")
-            await asyncio.sleep(1)
+            print(f"  ✅ همه کانفیگ‌ها در یک پیام ارسال شد")
+            return len(unique_configs)
         except TelegramError as e:
             print(f"  ❌ خطا در ارسال: {e}")
-            # امتحان بدون parse_mode
-            try:
-                await bot.send_message(
-                    chat_id=DESTINATION_CHANNEL,
-                    text=message_text,
-                    parse_mode=None,
-                    disable_web_page_preview=True
-                )
-                total_configs_sent += len(message["configs"])
-                print(f"  ✅ ارسال شد (بدون فرمت)")
-            except Exception as e2:
-                print(f"  ❌ خطای مجدد: {e2}")
-    
-    return total_configs_sent
+            return 0
 
 async def check_channel_for_new_messages(bot, channel):
+    """کانال را بررسی و کانفیگ‌های جدید را ارسال می‌کند"""
     channel_name = channel["url"].split('/')[-1]
     
     try:
@@ -146,12 +219,14 @@ async def check_channel_for_new_messages(bot, channel):
             print(f"  ❌ خطای HTTP {response.status_code} برای {channel_name}")
             return 0, channel
         
-        all_messages = extract_message_id_and_configs(response.text)
+        # استخراج پیام‌های خام (بدون پردازش کانفیگ)
+        all_messages = extract_raw_messages(response.text)
         
         if not all_messages:
-            print(f"  📭 هیچ پیامی با کانفیگ یافت نشد")
+            print(f"  📭 هیچ پیامی یافت نشد")
             return 0, channel
         
+        # پیدا کردن پیام‌های جدید
         new_messages = []
         if channel["last_id"]:
             for msg in all_messages:
@@ -159,13 +234,15 @@ async def check_channel_for_new_messages(bot, channel):
                     break
                 new_messages.append(msg)
         else:
+            # اولین بار: فقط آخرین پیام
             new_messages = [all_messages[0]] if all_messages else []
         
         if new_messages:
             channel["last_id"] = new_messages[0]["post_id"]
             print(f"  📨 {len(new_messages)} پیام جدید یافت شد")
             
-            sent_count = await send_configs_from_new_messages(bot, new_messages)
+            # ارسال همه کانفیگ‌ها در یک پیام
+            sent_count = await send_all_configs_together(bot, new_messages)
             return sent_count, channel
         else:
             print(f"  📭 پیام جدیدی یافت نشد")
@@ -217,7 +294,7 @@ async def main():
     if total_configs_sent > 0:
         print("✅ کار با موفقیت انجام شد!")
     else:
-        print("📭 هیچ پیام جدیدی یافت نشد")
+        print("📭 هیچ کانفیگ جدیدی یافت نشد")
 
 if __name__ == "__main__":
     asyncio.run(main())
