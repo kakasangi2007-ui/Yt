@@ -70,6 +70,15 @@ def extract_message_id_and_configs(html_content):
     
     return messages_data
 
+def escape_html(text):
+    """کاراکترهای ویژه HTML را escape می‌کند"""
+    text = text.replace('&', '&amp;')
+    text = text.replace('<', '&lt;')
+    text = text.replace('>', '&gt;')
+    text = text.replace('"', '&quot;')
+    text = text.replace("'", '&#39;')
+    return text
+
 async def send_configs_from_new_messages(bot, messages_data):
     if not messages_data:
         return 0
@@ -80,22 +89,26 @@ async def send_configs_from_new_messages(bot, messages_data):
         if not message["configs"]:
             continue
         
-        message_text = "🌟 *کانفیگ جدید* 🌟\n\n"
-        message_text += "🔗 کانفیگ (کپی‌شدنی):\n\n"
+        # ساخت پیام با فرمت HTML
+        message_text = "<b>🌟 کانفیگ جدید 🌟</b>\n\n"
+        message_text += "<b>🔗 کانفیگ (کپی‌شدنی):</b>\n\n"
         
         for config in message["configs"]:
-            message_text += f"`{config}`\n\n"
+            # Escape کاراکترهای HTML
+            safe_config = escape_html(config)
+            message_text += f"<code>{safe_config}</code>\n\n"
         
-        message_text += "🌐 وبسایت برای کانفیگ‌های بیشتر:\n"
+        message_text += "<b>🌐 وبسایت برای کانفیگ‌های بیشتر:</b>\n"
         message_text += "https://configfree.github.io/Configfree/\n\n"
-        message_text += "📌 کانال ما: @configs_freeiran\n"
+        message_text += "<b>📌 کانال ما:</b> @configs_freeiran\n"
         message_text += "============================"
         
+        # ارسال با فرمت HTML
         try:
             await bot.send_message(
                 chat_id=DESTINATION_CHANNEL,
                 text=message_text,
-                parse_mode='Markdown',
+                parse_mode='HTML',  # تغییر به HTML
                 disable_web_page_preview=True
             )
             total_configs_sent += len(message["configs"])
@@ -103,6 +116,18 @@ async def send_configs_from_new_messages(bot, messages_data):
             await asyncio.sleep(1)
         except TelegramError as e:
             print(f"  ❌ خطا در ارسال: {e}")
+            # امتحان بدون parse_mode
+            try:
+                await bot.send_message(
+                    chat_id=DESTINATION_CHANNEL,
+                    text=message_text,
+                    parse_mode=None,
+                    disable_web_page_preview=True
+                )
+                total_configs_sent += len(message["configs"])
+                print(f"  ✅ ارسال شد (بدون فرمت)")
+            except Exception as e2:
+                print(f"  ❌ خطای مجدد: {e2}")
     
     return total_configs_sent
 
