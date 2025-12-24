@@ -46,3 +46,4 @@ jobs:
             git commit -m "Update last messages [skip ci]"
             git push
             echo "✅ History updated successfully"
+          fi
