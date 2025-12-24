@@ -1,2 +1,4 @@
 requests>=2.28.0
 python-telegram-bot>=20.0
+telethon
+python-telegram-bot==20.7
