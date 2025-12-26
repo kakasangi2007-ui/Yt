@@ -2,6 +2,7 @@ import requests
 import os
 import json
 import time
+import asyncio
 from bs4 import BeautifulSoup
 from telegram import Bot
 
@@ -39,30 +40,24 @@ def extract_messages(html):
         if not post_id or not text_div:
             continue
 
-        text = text_div.get_text("\n", strip=True)
         messages.append({
             "id": post_id,
-            "text": text
+            "text": text_div.get_text("\n", strip=True)
         })
 
     return messages
 
 def extract_configs(text):
-    lines = text.splitlines()
-    configs = []
-
-    for l in lines:
-        l = l.strip()
-        if l.startswith((
+    return [
+        l.strip() for l in text.splitlines()
+        if l.strip().startswith((
             "vmess://", "vless://", "trojan://",
             "ss://", "hy2://",
             "VMESS://", "VLESS://", "TROJAN://"
-        )):
-            configs.append(l)
+        ))
+    ]
 
-    return configs
-
-def main():
+async def main():
     if not BOT_TOKEN:
         print("❌ BOT_TOKEN not set")
         return
@@ -77,7 +72,6 @@ def main():
         try:
             r = requests.get(url, headers=HEADERS, timeout=15)
             if r.status_code != 200:
-                print("⛔ HTTP error")
                 continue
 
             messages = extract_messages(r.text)
@@ -114,7 +108,7 @@ def main():
                     "============================"
                 )
 
-                bot.send_message(
+                await bot.send_message(
                     chat_id=DEST_CHANNEL,
                     text=body,
                     parse_mode="HTML",
@@ -122,7 +116,7 @@ def main():
                 )
 
                 total_sent += 1
-                time.sleep(1)
+                await asyncio.sleep(1)
 
         except Exception as e:
             print("⚠️ خطا ولی برنامه متوقف نشد:", e)
@@ -131,4 +125,4 @@ def main():
     print(f"✅ پایان کار | پیام‌های ارسال‌شده: {total_sent}")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
