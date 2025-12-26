@@ -1,11 +1,12 @@
-import os, json, re, time, datetime
+import os, json, re, datetime, asyncio
 import requests
 from bs4 import BeautifulSoup
-from telegram import Bot, constants
+from telegram import Bot
+from telegram.constants import ParseMode
 
 # ================== CONFIG ==================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-TARGET_CHAT = os.getenv("TARGET_CHAT")  # مثل: @your_channel
+TARGET_CHAT = os.getenv("TARGET_CHAT")  # مثل: @configs_freeiran
 SOURCES = [
     "https://t.me/s/V2RAYROZ",
     "https://t.me/s/V2ray_Alpha",
@@ -57,7 +58,6 @@ def fetch_channel(url):
     return messages  # جدید → قدیم
 
 def extract_configs(text):
-    # vmess / vless / trojan / ss
     pattern = r'(vmess://[^\s]+|vless://[^\s]+|trojan://[^\s]+|ss://[^\s]+)'
     return re.findall(pattern, text)
 
@@ -78,7 +78,7 @@ def build_messages(configs):
         messages.append(cur)
     return messages
 
-def main():
+async def main():
     bot = Bot(BOT_TOKEN)
     state = load_state()
     all_new_configs = []
@@ -101,17 +101,17 @@ def main():
     messages = build_messages(all_new_configs)
     sent = 0
     for m in messages:
-        bot.send_message(
+        await bot.send_message(
             chat_id=TARGET_CHAT,
             text=m,
-            parse_mode=constants.ParseMode.HTML,
+            parse_mode=ParseMode.HTML,
             disable_web_page_preview=True
         )
         sent += 1
-        time.sleep(0.8)
+        await asyncio.sleep(1)  # امن برای تلگرام
 
     save_state(state)
     print(f"✅ پایان کار | پیام‌های ارسال‌شده: {sent}")
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
