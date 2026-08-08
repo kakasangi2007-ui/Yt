@@ -10,7 +10,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 TARGET_CHAT = os.getenv("TARGET_CHAT")
 
 SOURCES = [
-    "https://t.me/s/ConfigsHUB2",
+    "https://t.me/s/ConfigsHUB",
 ]
 
 STATE_FILE = "last_messages.json"
