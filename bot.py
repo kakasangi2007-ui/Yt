@@ -22,6 +22,8 @@ CHANNEL_USERNAME = "@ConfigV2Ray_Free"
 HASHTAGS = "\n#config\n#v2ray"
 
 MAX_CONFIGS_PER_RUN = 10
+MAX_CONFIGS_JSON = 100
+JSON_FILE = "configs.json"
 # ===========================================
 
 
@@ -50,6 +52,18 @@ def load_state():
 def save_state(state):
     with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(state, f, ensure_ascii=False)
+
+
+# ---------- JSON Functions ----------
+def load_json_configs():
+    if os.path.exists(JSON_FILE):
+        with open(JSON_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
+
+def save_json_configs(configs):
+    with open(JSON_FILE, "w", encoding="utf-8") as f:
+        json.dump(configs, f, ensure_ascii=False, indent=2)
 
 
 # ---------- Fetch ----------
@@ -174,6 +188,7 @@ async def main():
     state = load_state()
     all_new_configs = []
 
+    # ====== جمع‌آوری کانفیگ‌ها ======
     for src in SOURCES:
         last_id = state.get(src)
         posts = fetch_channel(src)
@@ -192,7 +207,7 @@ async def main():
         save_state(state)
         return
 
-    # حذف کانفیگ‌های تکراری
+    # حذف تکراری
     seen = set()
     unique_configs = []
     for cfg in all_new_configs:
@@ -200,10 +215,14 @@ async def main():
             seen.add(cfg)
             unique_configs.append(cfg)
 
-    # فقط 10 تا آخر (جدیدترین کانفیگ‌ها)
-    unique_configs = unique_configs[-MAX_CONFIGS_PER_RUN:]
+    # ====== ذخیره ۱۰۰ کانفیگ در JSON (جدا) ======
+    json_configs = unique_configs[-MAX_CONFIGS_JSON:]
+    save_json_configs(json_configs)
+    print(f"✅ {len(json_configs)} configs saved to {JSON_FILE}")
 
-    messages = build_messages(unique_configs)
+    # ====== ارسال ۱۰ کانفیگ به کانال ======
+    send_configs = unique_configs[-MAX_CONFIGS_PER_RUN:]
+    messages = build_messages(send_configs)
 
     for msg in messages:
         await bot.send_message(
