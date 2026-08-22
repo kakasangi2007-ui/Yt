@@ -32,12 +32,18 @@ jobs:
         run: |
           python bot.py
 
-      - name: Commit state file
+      - name: Commit and push updated files
         run: |
-          if [ -f last_messages.json ]; then
-            git config --global user.name "GitHub Actions"
-            git config --global user.email "actions@github.com"
-            git add last_messages.json
-            git commit -m "update state" || echo "No changes to commit"
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          
+          # اضافه کردن هر دو فایل state و JSON
+          git add last_messages.json configs.json bot_debug.log 2>/dev/null || true
+          
+          # اگر تغییری وجود داشت، commit و push کن
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Auto-update: Configs and state [skip ci]"
             git push
           fi
