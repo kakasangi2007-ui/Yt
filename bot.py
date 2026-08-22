@@ -32,8 +32,8 @@ CHANNEL_USERNAME = "@ConfigV2Ray_Free"
 
 HASHTAGS = "\n#config\n#v2ray"
 
-MAX_CONFIGS_PER_RUN = 10
-MAX_CONFIGS_JSON = 100
+MAX_CONFIGS_PER_RUN = 10  # تعداد برای ارسال به کانال
+MAX_CONFIGS_JSON = 100    # تعداد برای فایل JSON
 JSON_FILE = "configs.json"
 # ===========================================
 
@@ -64,30 +64,39 @@ def save_state(state):
 
 # ---------- JSON Functions ----------
 def save_json_configs(configs):
-    """ذخیره کانفیگ‌ها در JSON"""
+    """ذخیره دقیقاً ۱۰۰ کانفیگ در JSON"""
     try:
+        # اگر کمتر از ۱۰۰ تا بود، با None پر کن
+        if len(configs) < MAX_CONFIGS_JSON:
+            logger.warning(f"⚠️ فقط {len(configs)} کانفیگ موجود است، با None پر می‌شود")
+            configs = configs + [None] * (MAX_CONFIGS_JSON - len(configs))
+        
+        # اگر بیشتر از ۱۰۰ بود، فقط ۱۰۰ تای آخر را بردار
+        elif len(configs) > MAX_CONFIGS_JSON:
+            configs = configs[-MAX_CONFIGS_JSON:]
+            logger.info(f"✂️ تعداد کانفیگ‌ها به {MAX_CONFIGS_JSON} کاهش یافت")
+        
+        # ذخیره در فایل
         with open(JSON_FILE, "w", encoding="utf-8") as f:
             json.dump(configs, f, ensure_ascii=False, indent=2)
-        logger.info(f"✅ {len(configs)} کانفیگ در {JSON_FILE} ذخیره شد")
+        
+        logger.info(f"✅ دقیقاً {len(configs)} کانفیگ در {JSON_FILE} ذخیره شد")
         return True
     except Exception as e:
         logger.error(f"❌ خطا در ذخیره JSON: {e}")
         return False
 
-# ---------- Fetch ALL Configs ----------
+# ---------- Fetch Functions ----------
 def fetch_all_configs_from_channel(url, max_configs=100):
-    """دریافت تمام کانفیگ‌ها از کانال و برگرداندن max_configs عدد آخر"""
-    logger.info(f"📡 دریافت کانفیگ‌ها از {url}")
-    
+    """دریافت ۱۰۰ کانفیگ آخر (برای JSON) - کاملاً جدا"""
+    logger.info(f"📡 دریافت کانفیگ‌ها از {url} برای فایل JSON")
     try:
-        # دریافت صفحه اول
         r = requests.get(url, timeout=30)
         r.raise_for_status()
         soup = BeautifulSoup(r.text, "html.parser")
         posts = soup.select("div.tgme_widget_message")
         
         all_configs = []
-        
         for p in posts:
             text = p.get_text("\n", strip=True)
             configs = extract_configs(text)
@@ -96,23 +105,33 @@ def fetch_all_configs_from_channel(url, max_configs=100):
                     all_configs.append(cfg)
         
         logger.info(f"✅ {len(all_configs)} کانفیگ از صفحه دریافت شد")
-        
-        # اگر به اندازه کافی نیست، صفحه بعدی را بگیر
-        next_page = soup.find("a", class_="tgme_widget_message_date")
-        if next_page and len(all_configs) < max_configs:
-            # تلاش برای دریافت صفحه بعدی (اگر وجود داشته باشد)
-            pass
-        
-        # برگرداندن ۱۰۰ تای آخر
         return all_configs[-max_configs:] if all_configs else []
-        
     except Exception as e:
         logger.error(f"❌ خطا در دریافت: {e}")
         return []
 
-def fetch_channel(url):
-    """تابع قدیمی برای سازگاری با بقیه کد"""
-    return fetch_all_configs_from_channel(url, 100)
+def fetch_channel_posts(url):
+    """دریافت پست‌های کانال (برای state و ارسال) - کاملاً جدا"""
+    logger.info(f"📡 دریافت پست‌ها از {url} برای ارسال به کانال")
+    try:
+        r = requests.get(url, timeout=30)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
+        posts = soup.select("div.tgme_widget_message")
+        
+        messages = []
+        for p in posts:
+            mid = p.get("data-post")
+            if not mid:
+                continue
+            text = p.get_text("\n", strip=True)
+            messages.append((mid, text))
+        
+        logger.info(f"✅ {len(messages)} پست دریافت شد")
+        return messages
+    except Exception as e:
+        logger.error(f"❌ خطا در دریافت پست‌ها: {e}")
+        return []
 
 # ---------- Extract ----------
 def extract_configs(text):
@@ -223,74 +242,100 @@ async def main():
         logger.error("❌ BOT_TOKEN یا TARGET_CHAT تعریف نشده!")
         return
     
-    # ====== دریافت ۱۰۰ کانفیگ آخر از کانال مبدا ======
-    logger.info("📥 در حال دریافت ۱۰۰ کانفیگ آخر از کانال مبدا...")
+    # ============================================================
+    # بخش ۱: دریافت و ذخیره ۱۰۰ کانفیگ آخر در JSON (کاملاً جدا)
+    # ============================================================
+    logger.info("📥 بخش ۱: دریافت ۱۰۰ کانفیگ آخر برای فایل JSON...")
     
-    all_configs = []
+    all_configs_for_json = []
     for src in SOURCES:
         configs = fetch_all_configs_from_channel(src, MAX_CONFIGS_JSON)
-        all_configs.extend(configs)
+        all_configs_for_json.extend(configs)
         logger.info(f"📊 از {src}: {len(configs)} کانفیگ دریافت شد")
     
-    # حذف تکراری‌ها
-    seen = set()
-    unique_configs = []
-    for cfg in all_configs:
-        if cfg not in seen:
-            seen.add(cfg)
-            unique_configs.append(cfg)
+    # حذف تکراری برای JSON
+    seen_json = set()
+    unique_configs_json = []
+    for cfg in all_configs_for_json:
+        if cfg not in seen_json:
+            seen_json.add(cfg)
+            unique_configs_json.append(cfg)
     
-    logger.info(f"🔄 بعد از حذف تکراری: {len(unique_configs)} کانفیگ")
+    logger.info(f"🔄 بعد از حذف تکراری: {len(unique_configs_json)} کانفیگ برای JSON")
     
-    # ====== ذخیره ۱۰۰ کانفیگ در JSON (همیشه ۱۰۰ تای آخر) ======
-    json_configs = unique_configs[-MAX_CONFIGS_JSON:]
+    # گرفتن ۱۰۰ تای آخر و ذخیره
+    json_configs = unique_configs_json[-MAX_CONFIGS_JSON:] if unique_configs_json else []
     
+    # اطمینان از دقیقاً ۱۰۰ تا بودن
+    if len(json_configs) < MAX_CONFIGS_JSON:
+        json_configs = json_configs + [None] * (MAX_CONFIGS_JSON - len(json_configs))
+        logger.warning(f"⚠️ تعداد کانفیگ‌ها به {len(json_configs)} رسید (با None پر شد)")
+    elif len(json_configs) > MAX_CONFIGS_JSON:
+        json_configs = json_configs[-MAX_CONFIGS_JSON:]
+        logger.info(f"✂️ تعداد کانفیگ‌ها به {MAX_CONFIGS_JSON} کاهش یافت")
+    
+    # ذخیره در فایل JSON
     if save_json_configs(json_configs):
-        logger.info(f"✅ فایل {JSON_FILE} با {len(json_configs)} کانفیگ به‌روز شد")
-        
-        # نمایش چند نمونه برای تأیید
-        if json_configs:
-            logger.info(f"📝 نمونه کانفیگ اول: {json_configs[0][:50]}...")
+        actual_configs = [c for c in json_configs if c is not None]
+        logger.info(f"✅ فایل {JSON_FILE} با {len(actual_configs)} کانفیگ واقعی به‌روز شد")
+        if actual_configs:
+            logger.info(f"📝 نمونه کانفیگ اول: {actual_configs[0][:50]}...")
     else:
         logger.error(f"❌ خطا در ذخیره {JSON_FILE}")
     
-    # ====== عملکرد عادی: ارسال ۱۰ کانفیگ به کانال ======
-    # توجه: این بخش از state استفاده می‌کند و فقط کانفیگ‌های جدید را ارسال می‌کند
+    # ============================================================
+    # بخش ۲: دریافت و ارسال ۱۰ کانفیگ جدید به کانال (کاملاً جدا)
+    # ============================================================
+    logger.info("📤 بخش ۲: دریافت کانفیگ‌های جدید برای ارسال به کانال...")
+    
     state = load_state()
     all_new_configs = []
     
     for src in SOURCES:
         last_id = state.get(src)
-        posts = fetch_channel(src)  # اینجا از تابع قدیمی استفاده می‌کنیم
+        posts = fetch_channel_posts(src)  # ✅ تابع درست برای پست‌ها
         
         if not posts:
+            logger.warning(f"⚠️ هیچ پستی از {src} دریافت نشد")
             continue
-            
+        
+        new_count = 0
         for mid, text in posts:
             if last_id and mid <= last_id:
+                logger.info(f"⏭️ رد کردن پست تکراری: {mid}")
                 break
-            for cfg in extract_configs(text):
+            
+            configs = extract_configs(text)
+            for cfg in configs:
                 if is_config_valid(cfg):
                     all_new_configs.append(cfg)
+                    new_count += 1
         
         if posts:
             state[src] = posts[0][0]
+            logger.info(f"💾 وضعیت به‌روز شد: {state[src]}")
+        
+        logger.info(f"📊 از {src}: {new_count} کانفیگ جدید پیدا شد")
     
-    # فقط کانفیگ‌های جدید را ارسال کن
+    logger.info(f"📊 تعداد کل کانفیگ‌های جدید: {len(all_new_configs)}")
+    
+    # ارسال به کانال
     if all_new_configs:
-        # حذف تکراری
-        seen = set()
-        unique_new = []
+        # حذف تکراری برای ارسال
+        seen_send = set()
+        unique_send = []
         for cfg in all_new_configs:
-            if cfg not in seen:
-                seen.add(cfg)
-                unique_new.append(cfg)
+            if cfg not in seen_send:
+                seen_send.add(cfg)
+                unique_send.append(cfg)
         
-        send_configs = unique_new[-MAX_CONFIGS_PER_RUN:]
+        send_configs = unique_send[-MAX_CONFIGS_PER_RUN:]
+        logger.info(f"📤 ارسال {len(send_configs)} کانفیگ به کانال")
+        
         messages = build_messages(send_configs)
-        
         bot = Bot(BOT_TOKEN)
-        for msg in messages:
+        
+        for i, msg in enumerate(messages, 1):
             try:
                 await bot.send_message(
                     chat_id=TARGET_CHAT,
@@ -298,16 +343,17 @@ async def main():
                     parse_mode=ParseMode.HTML,
                     disable_web_page_preview=True
                 )
-                logger.info("✅ پیام ارسال شد")
+                logger.info(f"✅ پیام {i} از {len(messages)} ارسال شد")
                 await asyncio.sleep(1)
             except Exception as e:
-                logger.error(f"❌ خطا در ارسال: {e}")
+                logger.error(f"❌ خطا در ارسال پیام {i}: {e}")
         
         save_state(state)
     else:
         logger.info("ℹ️ کانفیگ جدیدی برای ارسال وجود ندارد")
     
-    logger.info("🏁 اجرای ربات به پایان رسید")
+    logger.info("="*50)
+    logger.info("🏁 اجرای ربات با موفقیت به پایان رسید")
 
 if __name__ == "__main__":
     asyncio.run(main())
