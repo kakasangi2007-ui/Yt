@@ -1,8 +1,8 @@
 [
-  "vless://767b6340-96dc-4aa0-8013-a8af7513d920@104.26.12.54:443?security=tls&type=ws&path=/?ed=2560&host=c7dabe95.proxy-978.pages.dev&sni=c7dabe95.proxy-978.pages.dev&fp=random#[",
-  "vless://511c1563-2cb6-4064-abc6-a59ee49818a8@5.253.30.99:40443?security=reality&encryption=none&pbk=cwmcqsfS7klQlkcoUNuATEk0NiPY-NnRb9z8rCJDQw0&headerType=none&fp=chrome&type=tcp&flow=xtls-rprx-vision&sni=deepl.com&sid=88b6#[",
-  "vmess://eyJhZGQiOiIxNjUuMTU0LjE5NS4zOCIsImFpZCI6IjAiLCJhbHBuIjoiIiwiZnAiOiIiLCJob3N0IjoiIiwiaWQiOiI5NTlhOGNhZi00Y2VhLTQzZDAtYTU0OC0zNjI4ZTdkZGZhZmMiLCJuZXQiOiJ0Y3AiLCJwYXRoIjoiIiwicG9ydCI6IjM1MDM0IiwicHMiOiJb8J+HufCfh7xddC5tZS9Db25maWdzSHViIiwic2N5IjoiYXV0byIsInNuaSI6IiIsInRscyI6IiIsInR5cGUiOiJub25lIiwidiI6IjIifQ==",
-  "vless://bc67e3db-a6da-4bf9-a5e9-bcefbd4348b7@filmak.dearhossein-taktaz.ir:443?sid=edce490df2e1&path=%2F%40sia_vpn23&type=xhttp&sni=bale.ai&security=reality&spx=%2Fe14a399ab06cedc&host=filmak.dearhossein-taktaz.ir&mode=stream-one&pbk=enosLCJxsziIjoAlgI4FCUeKFcSKYoK3LKiN_MSAJgE&extra=%7B%22mode%22%3A%22stream-one%22%2C%22xPaddingBytes%22%3A%22200-1200%22%2C%22xPaddingObfsMode%22%3Atrue%2C%22xmux%22%3A%7B%22cMaxReuseTimes%22%3A0%2C%22hKeepAlivePeriod%22%3A0%2C%22hMaxRequestTimes%22%3A%22800-1200%22%2C%22hMaxReusableSecs%22%3A%223200%22%2C%22maxConcurrency%22%3A%22200%22%2C%22maxConnections%22%3A0%7D%7D&encryption=none&fp=firefox#[",
+  "vless://4a269a45-a9e3-4272-b04a-1d42d581150f@45.95.184.120:2087?path=%2F4de527ea5ed9&security=&encryption=none&type=ws#[",
+  null,
+  null,
+  null,
   null,
   null,
   null,
